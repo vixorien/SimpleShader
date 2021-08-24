@@ -1,5 +1,17 @@
 #include "SimpleShader.h"
 
+// Default error reporting state
+bool ISimpleShader::ReportErrors = false;
+bool ISimpleShader::ReportWarnings = false;
+
+// To enable error reporting, use either or both 
+// of the following lines somewhere in your program, 
+// preferably before loading/using any shaders.
+// 
+// ISimpleShader::ReportErrors = true;
+// ISimpleShader::ReportWarnings = true;
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // ------ BASE SIMPLE SHADER --------------------------------------------------
 ///////////////////////////////////////////////////////////////////////////////
@@ -72,9 +84,13 @@ bool ISimpleShader::LoadShaderFile(LPCWSTR shaderFile)
 	HRESULT hr = D3DReadFileToBlob(shaderFile, shaderBlob.GetAddressOf());
 	if (hr != S_OK)
 	{
-		ErrorRed("SimpleShader::LoadShaderFile() - Error loading file '");
-		Error(shaderFile);
-		ErrorRed("'. Ensure this file exists and is spelled correctly.\n");
+		if (ReportErrors)
+		{
+			LogError("SimpleShader::LoadShaderFile() - Error loading file '");
+			LogW(shaderFile);
+			LogError("'. Ensure this file exists and is spelled correctly.\n");
+		}
+
 		return false;
 	}
 
@@ -83,9 +99,13 @@ bool ISimpleShader::LoadShaderFile(LPCWSTR shaderFile)
 	shaderValid = CreateShader(shaderBlob);
 	if (!shaderValid)
 	{
-		ErrorRed("SimpleShader::LoadShaderFile() - Error creating shader from file '");
-		Error(shaderFile);
-		ErrorRed("'. Ensure the type of shader (vertex, pixel, etc.) matches the SimpleShader type (SimpleVertexShader, SimplePixelShader, etc.) you're using.\n");
+		if (ReportErrors)
+		{
+			LogError("SimpleShader::LoadShaderFile() - Error creating shader from file '");
+			LogW(shaderFile);
+			LogError("'. Ensure the type of shader (vertex, pixel, etc.) matches the SimpleShader type (SimpleVertexShader, SimplePixelShader, etc.) you're using.\n");
+		}
+
 		return false;
 	}
 
@@ -255,56 +275,48 @@ SimpleConstantBuffer* ISimpleShader::FindConstantBuffer(std::string name)
 }
 
 // --------------------------------------------------------
-// Prints the specified error to the console
-// and Visual Studio's output window
+// Prints the specified message to the console with the 
+// given color and Visual Studio's output window
 // --------------------------------------------------------
-void ISimpleShader::Error(std::string message)
+void ISimpleShader::Log(std::string message, WORD color)
 {
+	// Swap console color
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(hConsole, color);
+
 	printf_s(message.c_str());
 	OutputDebugString(message.c_str());
+
+	// Swap back
+	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 }
 
 // --------------------------------------------------------
-// Prints the specified error to the console 
-// and Visual Studio's output window
+// Prints the specified message, as a wide string, to the 
+// console with the given color and Visual Studio's output window
 // --------------------------------------------------------
-void ISimpleShader::Error(std::wstring message)
+void ISimpleShader::LogW(std::wstring message, WORD color)
 {
+	// Swap console color
+	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleTextAttribute(hConsole, color);
+	
 	wprintf_s(message.c_str());
 	OutputDebugStringW(message.c_str());
-}
 
-// --------------------------------------------------------
-// Prints the specified error to the console using bright
-// red text and also to Visual Studio's output window
-// --------------------------------------------------------
-void ISimpleShader::ErrorRed(std::string message)
-{
-	// Swap to bright red text
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
-
-	Error(message);
-
-	// Back to standard text
+	// Swap back
 	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
 }
 
-// --------------------------------------------------------
-// Prints the specified error to the console using bright
-// red text and also to Visual Studio's output window
-// --------------------------------------------------------
-void ISimpleShader::ErrorRed(std::wstring message)
-{
-	// Swap to bright red text
-	HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_INTENSITY);
 
-	Error(message);
+// Helpers for pritning errors and warnings in specific colors using regular and wide character strings
+void ISimpleShader::Log(std::string message) { Log(message, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY); }
+void ISimpleShader::LogW(std::wstring message) { LogW(message, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY); }
+void ISimpleShader::LogError(std::string message) { Log(message, FOREGROUND_RED | FOREGROUND_INTENSITY); }
+void ISimpleShader::LogErrorW(std::wstring message) { LogW(message, FOREGROUND_RED | FOREGROUND_INTENSITY); }
+void ISimpleShader::LogWarning(std::string message) { Log(message, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY); }
+void ISimpleShader::LogWarningW(std::wstring message) { LogW(message, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY); }
 
-	// Back to standard text
-	SetConsoleTextAttribute(hConsole, FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE);
-}
 
 // --------------------------------------------------------
 // Sets the shader and associated constant buffers in DirectX
@@ -407,9 +419,12 @@ bool ISimpleShader::SetData(std::string name, const void* data, unsigned int siz
 	SimpleShaderVariable* var = FindVariable(name, -1);
 	if (var == 0)
 	{
-		ErrorRed("SimpleShader::SetData() - Shader variable '");
-		Error(name);
-		ErrorRed("' not found. Ensure the name is spelled correctly and that it exists in a constant buffer in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleShader::SetData() - Shader variable '");
+			Log(name);
+			LogWarning("' not found. Ensure the name is spelled correctly and that it exists in a constant buffer in the shader.\n");
+		}
 		return false;
 	}
 
@@ -417,9 +432,12 @@ bool ISimpleShader::SetData(std::string name, const void* data, unsigned int siz
 	// Note: We can copy less data, in the case of a subset of an array
 	if (size > var->Size)
 	{
-		ErrorRed("SimpleShader::SetData() - Shader variable '");
-		Error(name);
-		ErrorRed("' is smaller than the size of the data being set. Ensure the variable is large enough for the specified data.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleShader::SetData() - Shader variable '");
+			Log(name);
+			LogWarning("' is smaller than the size of the data being set. Ensure the variable is large enough for the specified data.\n");
+		}
 		return false;
 	}
 
@@ -874,9 +892,12 @@ bool SimpleVertexShader::SetShaderResourceView(std::string name, Microsoft::WRL:
 	const SimpleSRV* srvInfo = GetShaderResourceViewInfo(name);
 	if (srvInfo == 0)
 	{
-		ErrorRed("SimpleVertexShader::SetShaderResourceView() - SRV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleVertexShader::SetShaderResourceView() - SRV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -901,9 +922,12 @@ bool SimpleVertexShader::SetSamplerState(std::string name, Microsoft::WRL::ComPt
 	const SimpleSampler* sampInfo = GetSamplerInfo(name);
 	if (sampInfo == 0)
 	{
-		ErrorRed("SimpleVertexShader::SetSamplerState() - Sampler named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleVertexShader::SetSamplerState() - Sampler named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1005,9 +1029,12 @@ bool SimplePixelShader::SetShaderResourceView(std::string name, Microsoft::WRL::
 	const SimpleSRV* srvInfo = GetShaderResourceViewInfo(name);
 	if (srvInfo == 0)
 	{
-		ErrorRed("SimplePixelShader::SetShaderResourceView() - SRV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimplePixelShader::SetShaderResourceView() - SRV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1032,9 +1059,12 @@ bool SimplePixelShader::SetSamplerState(std::string name, Microsoft::WRL::ComPtr
 	const SimpleSampler* sampInfo = GetSamplerInfo(name);
 	if (sampInfo == 0)
 	{
-		ErrorRed("SimplePixelShader::SetSamplerState() - Sampler named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimplePixelShader::SetSamplerState() - Sampler named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1138,9 +1168,12 @@ bool SimpleDomainShader::SetShaderResourceView(std::string name, Microsoft::WRL:
 	const SimpleSRV* srvInfo = GetShaderResourceViewInfo(name);
 	if (srvInfo == 0)
 	{
-		ErrorRed("SimpleDomainShader::SetShaderResourceView() - SRV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleDomainShader::SetShaderResourceView() - SRV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1165,9 +1198,12 @@ bool SimpleDomainShader::SetSamplerState(std::string name, Microsoft::WRL::ComPt
 	const SimpleSampler* sampInfo = GetSamplerInfo(name);
 	if (sampInfo == 0)
 	{
-		ErrorRed("SimpleDomainShader::SetSamplerState() - Sampler named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleDomainShader::SetSamplerState() - Sampler named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1270,9 +1306,12 @@ bool SimpleHullShader::SetShaderResourceView(std::string name, Microsoft::WRL::C
 	const SimpleSRV* srvInfo = GetShaderResourceViewInfo(name);
 	if (srvInfo == 0)
 	{
-		ErrorRed("SimpleHullShader::SetShaderResourceView() - SRV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleHullShader::SetShaderResourceView() - SRV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1297,9 +1336,12 @@ bool SimpleHullShader::SetSamplerState(std::string name, Microsoft::WRL::ComPtr<
 	const SimpleSampler* sampInfo = GetSamplerInfo(name);
 	if (sampInfo == 0)
 	{
-		ErrorRed("SimpleHullShader::SetSamplerState() - Sampler named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleHullShader::SetSamplerState() - Sampler named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1465,7 +1507,11 @@ bool SimpleGeometryShader::CreateCompatibleStreamOutBuffer(Microsoft::WRL::ComPt
 	// Was stream output actually used?
 	if (!this->useStreamOut || !shaderValid || streamOutVertexSize == 0)
 	{
-		ErrorRed("SimpleGeometryShader::CreateCompatibleStreamOutBuffer() - Either the shader is not valid or this SimpleGeometryShader was not initialized for stream out usage.\n");
+		if (ReportErrors)
+		{
+			LogError("SimpleGeometryShader::CreateCompatibleStreamOutBuffer() - Either the shader is not valid or this SimpleGeometryShader was not initialized for stream out usage.\n");
+		}
+
 		return false;
 	}
 
@@ -1529,9 +1575,12 @@ bool SimpleGeometryShader::SetShaderResourceView(std::string name, Microsoft::WR
 	const SimpleSRV* srvInfo = GetShaderResourceViewInfo(name);
 	if (srvInfo == 0)
 	{
-		ErrorRed("SimpleGeometryShader::SetShaderResourceView() - SRV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleGeometryShader::SetShaderResourceView() - SRV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1556,9 +1605,12 @@ bool SimpleGeometryShader::SetSamplerState(std::string name, Microsoft::WRL::Com
 	const SimpleSampler* sampInfo = GetSamplerInfo(name);
 	if (sampInfo == 0)
 	{
-		ErrorRed("SimpleGeometryShader::SetSamplerState() - Sampler named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleGeometryShader::SetSamplerState() - Sampler named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1789,9 +1841,12 @@ bool SimpleComputeShader::SetShaderResourceView(std::string name, Microsoft::WRL
 	const SimpleSRV* srvInfo = GetShaderResourceViewInfo(name);
 	if (srvInfo == 0)
 	{
-		ErrorRed("SimpleComputeShader::SetShaderResourceView() - SRV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleComputeShader::SetShaderResourceView() - SRV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1816,9 +1871,12 @@ bool SimpleComputeShader::SetSamplerState(std::string name, Microsoft::WRL::ComP
 	const SimpleSampler* sampInfo = GetSamplerInfo(name);
 	if (sampInfo == 0)
 	{
-		ErrorRed("SimpleComputeShader::SetSamplerState() - Sampler named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleComputeShader::SetSamplerState() - Sampler named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 
@@ -1844,9 +1902,12 @@ bool SimpleComputeShader::SetUnorderedAccessView(std::string name, Microsoft::WR
 	unsigned int bindIndex = GetUnorderedAccessViewIndex(name);
 	if (bindIndex == -1)
 	{
-		ErrorRed("SimpleComputeShader::SetUnorderedAccessView() - UAV named '");
-		Error(name);
-		ErrorRed("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		if (ReportWarnings)
+		{
+			LogWarning("SimpleComputeShader::SetUnorderedAccessView() - UAV named '");
+			Log(name);
+			LogWarning("' was not found in the shader. Ensure the name is spelled correctly and that it exists in the shader.\n");
+		}
 		return false;
 	}
 

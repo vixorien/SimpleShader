@@ -11,6 +11,7 @@
 #include <vector>
 #include <string>
 
+
 // --------------------------------------------------------
 // Used by simple shaders to store information about
 // specific variables in constant buffers
@@ -116,6 +117,10 @@ public:
 	// Misc getters
 	Microsoft::WRL::ComPtr<ID3DBlob> GetShaderBlob() { return shaderBlob; }
 
+	// Error reporting
+	static bool ReportErrors;
+	static bool ReportWarnings;
+
 protected:
 	
 	bool shaderValid;
@@ -149,10 +154,14 @@ protected:
 	SimpleConstantBuffer* FindConstantBuffer(std::string name);
 
 	// Error logging
-	void Error(std::string message);
-	void Error(std::wstring message);
-	void ErrorRed(std::string message);
-	void ErrorRed(std::wstring message);
+	void Log(std::string message, WORD color);
+	void LogW(std::wstring message, WORD color);
+	void Log(std::string message);
+	void LogW(std::wstring message);
+	void LogError(std::string message);
+	void LogErrorW(std::wstring message);
+	void LogWarning(std::string message);
+	void LogWarningW(std::wstring message);
 };
 
 // --------------------------------------------------------
