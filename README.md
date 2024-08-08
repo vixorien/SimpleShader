@@ -1,5 +1,5 @@
 # SimpleShader
-A set of classes to simplify Direct3D 11 shader management & constant buffer handling.
+A set of classes to simplify Direct3D 11 shader management, constant buffer handling and resource binding.
 
 SimpleShader supports the following shader types:
 - Vertex
