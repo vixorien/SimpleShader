@@ -10,7 +10,7 @@ SimpleShader supports the following shader types:
 - Compute
 
 # Example
-Turn these...
+Turn all of this...
 ```C++
 // Representation of constant buffer layout
 struct VertexShaderExternalData
